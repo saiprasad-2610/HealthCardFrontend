@@ -1,371 +1,315 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, Download, Printer, Loader2, Zap } from 'lucide-react';
+// App.js
 
-// Base structure for a Line Item
-const initialItem = {
-  description: '',
-  quantity: 1,
-  unitPrice: 0.0,
-  lineTotal: 0.0,
-};
+import React, { useState } from 'react';
+import './App.css'; // Import the standard CSS file
 
-// Base structure for the entire Invoice State
-const initialInvoiceState = {
-  customerName: 'Acme Corp',
-  customerAddress: '123 Main Street, Suite 100, Anytown, CA 90210',
-  gstRate: 18.0, // Default GST rate
-  items: [
-    { ...initialItem, description: 'Software Development Fee', quantity: 1, unitPrice: 500.0, lineTotal: 500.0 },
-  ],
-  subTotal: 0.0,
-  gstAmount: 0.0,
-  totalAmount: 0.0,
-};
+// --- Core Components ---
 
-// Mock Backend Endpoint (The user needs to match this in their Spring Boot Controller)
-const API_URL = '/api/invoices/generate-pdf';
+/**
+ * 1. Header Component
+ */
+const Header = ({ onLogout }) => (
+  <header className="header">
+    <div className="header-logo">
+      <svg className="header-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+      </svg>
+      <h1>HealthCard | Digital Health Identity</h1>
+    </div>
+    {onLogout && (
+      <button onClick={onLogout} className="btn btn-danger">
+        Logout 🚪
+      </button>
+    )}
+  </header>
+);
 
-const App = () => {
-  const [invoice, setInvoice] = useState(initialInvoiceState);
-  const [pdfUrl, setPdfUrl] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+/**
+ * 2. Login/Authentication Component
+ */
+const AuthScreen = ({ onLogin }) => {
+  const [healthCardId, setHealthCardId] = useState('');
+  const [password, setPassword] = useState('');
 
-  // --- Calculation Logic ---
-
-  const calculateTotals = useCallback(() => {
-    const newSubTotal = invoice.items.reduce((sum, item) => sum + item.lineTotal, 0);
-    const newGstAmount = (newSubTotal * invoice.gstRate) / 100;
-    const newTotalAmount = newSubTotal + newGstAmount;
-
-    setInvoice(prev => ({
-      ...prev,
-      subTotal: newSubTotal,
-      gstAmount: newGstAmount,
-      totalAmount: newTotalAmount,
-    }));
-  }, [invoice.items, invoice.gstRate]);
-
-  useEffect(() => {
-    calculateTotals();
-  }, [calculateTotals]);
-
-  // --- Handlers ---
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setInvoice(prev => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleItemChange = (index, e) => {
-    const { name, value } = e.target;
-    const items = [...invoice.items];
-    const item = items[index];
-
-    let numericValue = parseFloat(value);
-    if (isNaN(numericValue) || numericValue < 0) numericValue = 0;
-
-    // Update quantity or unitPrice
-    if (name === 'quantity') {
-      item.quantity = Math.max(1, parseInt(value, 10) || 0);
-    } else if (name === 'unitPrice') {
-      item.unitPrice = numericValue;
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (healthCardId.trim() && password.trim()) {
+      onLogin(healthCardId);
     } else {
-      item[name] = value;
-    }
-
-    // Recalculate line total immediately
-    item.lineTotal = item.quantity * item.unitPrice;
-
-    setInvoice(prev => ({
-      ...prev,
-      items,
-    }));
-  };
-
-  const handleAddItem = () => {
-    setInvoice(prev => ({
-      ...prev,
-      items: [...prev.items, { ...initialItem, description: 'New Service/Product' }],
-    }));
-  };
-
-  const handleRemoveItem = (index) => {
-    const items = invoice.items.filter((_, i) => i !== index);
-    setInvoice(prev => ({
-      ...prev,
-      items,
-    }));
-  };
-
-  const handleGeneratePdf = async () => {
-    setIsLoading(true);
-    setError(null);
-    setPdfUrl(null);
-
-    // 1. Serialize items array into the JSON string the backend expects
-    const payloadItemsJson = JSON.stringify(invoice.items.map(item => ({
-      description: item.description,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      lineTotal: item.lineTotal,
-    })));
-
-    // 2. Construct the full payload for the backend
-    const payload = {
-      customerName: invoice.customerName,
-      customerAddress: invoice.customerAddress,
-      gstRate: invoice.gstRate,
-      subTotal: invoice.subTotal,
-      gstAmount: invoice.gstAmount,
-      totalAmount: invoice.totalAmount,
-      itemsJson: payloadItemsJson, // Send the serialized JSON string
-    };
-
-    try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status} - ${response.statusText}`);
-      }
-
-      // 3. Receive PDF byte array as Blob
-      const pdfBlob = await response.blob();
-      
-      // 4. Create a URL for the Blob and set it for the iframe
-      const url = URL.createObjectURL(pdfBlob);
-      setPdfUrl(url);
-
-    } catch (err) {
-      console.error("PDF generation failed:", err);
-      setError("Failed to generate PDF. Check network and backend logs.");
-    } finally {
-      setIsLoading(false);
+      alert('Please enter ID and Password.');
     }
   };
-  
-  // Clean up the URL when the component unmounts or a new PDF is generated
-  useEffect(() => {
-    return () => {
-      if (pdfUrl) {
-        URL.revokeObjectURL(pdfUrl);
-      }
-    };
-  }, [pdfUrl]);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans">
-      <h1 className="text-3xl font-extrabold text-indigo-700 mb-6 flex items-center">
-        <Zap className="mr-3 h-8 w-8 text-indigo-500" />
-        Invoice PDF Generator (React + Spring/iText)
-      </h1>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* --- Input Form (Col 1 & 2) --- */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-2xl border border-gray-100">
-          <h2 className="text-2xl font-semibold mb-4 text-gray-800 border-b pb-2">Invoice Details</h2>
-
-          {/* Customer Info */}
-          <div className="mb-6 space-y-4">
-            <h3 className="text-lg font-medium text-gray-700">Client Information</h3>
-            <label className="block">
-              <span className="text-sm font-medium text-gray-600">Customer/Firm Name</span>
-              <input
-                type="text"
-                name="customerName"
-                value={invoice.customerName}
-                onChange={handleInputChange}
-                className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
-                placeholder="Client Name"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-medium text-gray-600">Customer Address</span>
-              <textarea
-                name="customerAddress"
-                value={invoice.customerAddress}
-                onChange={handleInputChange}
-                rows="2"
-                className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 resize-none"
-                placeholder="Street, City, Postal Code"
-              />
-            </label>
-          </div>
-
-          {/* Line Items Table */}
-          <h3 className="text-lg font-medium text-gray-700 mb-3">Line Items</h3>
-          <div className="overflow-x-auto shadow-md rounded-lg mb-6 border border-gray-200">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/2">Description</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                  <th className="p-3"></th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {invoice.items.map((item, index) => (
-                  <tr key={index} className="hover:bg-indigo-50 transition duration-150">
-                    <td className="p-3">
-                      <input
-                        type="text"
-                        name="description"
-                        value={item.description}
-                        onChange={(e) => handleItemChange(index, e)}
-                        className="w-full text-sm border-none p-1 focus:ring-0"
-                      />
-                    </td>
-                    <td className="p-3 text-right">
-                      <input
-                        type="number"
-                        name="quantity"
-                        value={item.quantity}
-                        onChange={(e) => handleItemChange(index, e)}
-                        min="1"
-                        className="w-16 text-sm text-right border-none p-1 focus:ring-0"
-                      />
-                    </td>
-                    <td className="p-3 text-right">
-                      <input
-                        type="number"
-                        name="unitPrice"
-                        value={item.unitPrice.toFixed(2)}
-                        onChange={(e) => handleItemChange(index, e)}
-                        min="0"
-                        step="0.01"
-                        className="w-24 text-sm text-right border-none p-1 focus:ring-0"
-                      />
-                    </td>
-                    <td className="p-3 text-right text-sm font-semibold text-gray-700">
-                      ${item.lineTotal.toFixed(2)}
-                    </td>
-                    <td className="p-3 text-right">
-                      <button
-                        onClick={() => handleRemoveItem(index)}
-                        disabled={invoice.items.length === 1}
-                        className="text-red-500 hover:text-red-700 disabled:text-gray-300 transition duration-150 p-1 rounded-full"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          <button
-            onClick={handleAddItem}
-            className="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800 transition duration-150 mb-6 p-2 rounded-lg bg-indigo-50 hover:bg-indigo-100"
-          >
-            <Plus className="h-4 w-4 mr-1" /> Add Line Item
+    <div className="auth-container">
+      <div className="auth-box">
+        <h2 className="auth-title">Access HealthCard Records</h2>
+        <p className="auth-subtitle">Authorized Medical Personnel Login</p>
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <input
+            id="healthCardId"
+            type="text"
+            required
+            value={healthCardId}
+            onChange={(e) => setHealthCardId(e.target.value)}
+            placeholder="Your Hospital/Doctor ID"
+            className="input-field"
+          />
+          <input
+            id="password"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Secure Password"
+            className="input-field"
+          />
+          <button type="submit" className="btn btn-primary btn-full">
+            Authenticate & Proceed
           </button>
-          
-          {/* GST Rate Input */}
-          <div className="flex justify-end mb-6">
-            <label className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-600">GST Rate (%)</span>
-              <input
-                type="number"
-                name="gstRate"
-                value={invoice.gstRate}
-                onChange={handleInputChange}
-                min="0"
-                step="0.1"
-                className="w-20 rounded-lg border-gray-300 shadow-sm p-2 text-right focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
-              />
-            </label>
-          </div>
-          
-          {/* Final Totals Readout */}
-          <div className="flex justify-end">
-            <div className="w-full max-w-sm">
-              <div className="space-y-2 text-right text-gray-700">
-                <div className="flex justify-between border-b pb-1">
-                  <span className="font-medium">Subtotal:</span>
-                  <span>${invoice.subTotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between border-b pb-1">
-                  <span className="font-medium">GST ({invoice.gstRate}%):</span>
-                  <span>${invoice.gstAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-xl font-bold pt-2 text-indigo-700 bg-indigo-50 p-2 rounded-lg">
-                  <span>GRAND TOTAL:</span>
-                  <span>${invoice.totalAmount.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* --- PDF Preview (Col 3) --- */}
-        <div className="lg:col-span-1">
-          <div className="bg-white p-6 rounded-xl shadow-2xl sticky top-8 border border-gray-100">
-            <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center">
-              <Printer className="mr-2 h-5 w-5" /> PDF Preview
-            </h2>
-            
-            {/* Action Button */}
-            <button
-              onClick={handleGeneratePdf}
-              disabled={isLoading}
-              className={`w-full flex justify-center items-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl shadow-lg transition duration-300 ${
-                isLoading
-                  ? 'bg-indigo-300 cursor-not-allowed'
-                  : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-xl'
-              }`}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Generating PDF...
-                </>
-              ) : (
-                <>
-                  <Download className="mr-2 h-5 w-5" />
-                  Generate PDF
-                </>
-              )}
-            </button>
-
-            {/* Error Message */}
-            {error && (
-              <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm font-medium">
-                Error: {error}
-              </div>
-            )}
-            
-            {/* PDF Viewer */}
-            <div className="mt-6 border border-gray-300 rounded-lg overflow-hidden h-96 bg-gray-100">
-              {pdfUrl ? (
-                <iframe 
-                  src={pdfUrl} 
-                  className="w-full h-full" 
-                  title="PDF Preview"
-                ></iframe>
-              ) : (
-                <div className="h-full flex items-center justify-center text-gray-500 text-center p-4">
-                  Click 'Generate PDF' to see the document here.
-                </div>
-              )}
-            </div>
-            
-          </div>
-        </div>
+          <p className="auth-note">
+            Records are **Encrypted** and access is **Logged** for transparency.
+          </p>
+        </form>
       </div>
     </div>
   );
 };
 
-export default App;
+
+/**
+ * 3. Dashboard Component (Main View)
+ */
+const Dashboard = ({ loggedInId }) => {
+  const [searchId, setSearchId] = useState('');
+  const [patientData, setPatientData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Mock data to simulate API response
+ const mockPatientData = {
+  // --- PERSON 1: Chronic Condition Example ---
+  'HC-12345678': {
+    name: 'Priya Sharma',
+    dob: '15/05/1985',
+    bloodGroup: 'A+',
+    allergies: ['Penicillin', 'Dust Mites'], // Critical Allergy
+    currentMedications: ['Metformin (Diabetes)', 'Aspirin (Cardio)'],
+    lastVisit: '2025-09-10 (City Hospital, Mumbai)',
+    records: [
+      { date: '2025-09-10', type: 'Consultation', details: 'Routine Diabetes Check-up. HbA1c: 6.8%', doctor: 'Dr. A. Kumar' },
+      { date: '2024-03-20', type: 'Surgery', details: 'Appendectomy performed successfully under general anesthesia.', doctor: 'Dr. S. Patel' },
+      { date: '2023-11-05', type: 'Lab Report', details: 'Complete Blood Count (CBC) - Normal results.', doctor: 'Lab Corp' },
+    ],
+  },
+
+  // --- PERSON 2: Emergency & Recent Injury Example ---
+  'HC-90123456': {
+    name: 'Rajesh Verma',
+    dob: '03/11/1998',
+    bloodGroup: 'O-', // Rare Blood Group highlighted for emergency
+    allergies: ['No Known Drug Allergies (NKDA)'],
+    currentMedications: ['Painkiller (as needed)'],
+    lastVisit: '2025-10-25 (Trauma Center, Delhi)',
+    records: [
+      { date: '2025-10-25', type: 'Consultation', details: 'Emergency room visit for fractured wrist after bike accident.', doctor: 'Dr. N. Singh' },
+      { date: '2025-02-15', type: 'Vaccination', details: 'Seasonal Influenza Vaccine administered.', doctor: 'Govt. Clinic' },
+      { date: '2019-07-01', type: 'Lab Report', details: 'Initial health screening, cholesterol levels normal.', doctor: 'Health Check Labs' },
+    ],
+  },
+
+  // --- PERSON 3: Pediatric/Simple History Example ---
+  'HC-37485960': {
+    name: 'Meena Reddy',
+    dob: '01/01/2015',
+    bloodGroup: 'B+',
+    allergies: ['Peanuts'], // Severe Food Allergy
+    currentMedications: ['Montelukast (Asthma maintenance)'],
+    lastVisit: '2025-08-01 (Children\'s Hospital, Chennai)',
+    records: [
+      { date: '2025-08-01', type: 'Consultation', details: 'Routine pediatric check-up. Confirmed asthma status.', doctor: 'Dr. V. Iyer' },
+      { date: '2020-05-10', type: 'Vaccination', details: 'MMR and DTaP boosters completed.', doctor: 'Local Health Dept.' },
+    ],
+  },
+};
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setError(null);
+    setPatientData(null);
+    if (!searchId.trim()) return;
+
+    setIsLoading(true);
+    // Simulate API call delay
+    setTimeout(() => {
+      const data = mockPatientData[searchId.toUpperCase()];
+      if (data) {
+        setPatientData(data);
+        setError(null);
+      } else {
+        setError(`No records found for HealthCard ID: ${searchId}`);
+      }
+      setIsLoading(false);
+    }, 1500);
+  };
+
+  return (
+    <div className="dashboard-container">
+      <h2 className="dashboard-title">
+        Welcome, {loggedInId} | Instant Patient History Access 🩺
+      </h2>
+
+      {/* Search Bar */}
+      <form onSubmit={handleSearch} className="search-bar-form">
+        <input
+          type="text"
+          placeholder="Enter Patient HealthCard ID to Search (e.g., HC-12345678)"
+          value={searchId}
+          onChange={(e) => setSearchId(e.target.value.toUpperCase())}
+          className="input-field search-input"
+        />
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="btn btn-primary search-button"
+        >
+          {isLoading ? (
+            <div className="spinner"></div>
+          ) : (
+            <>
+              <svg className="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+              Search Record
+            </>
+          )}
+        </button>
+      </form>
+
+      {/* Display Area */}
+      {error && (
+        <div className="alert-error">
+          <p>Access Denied / Not Found: {error}.</p>
+        </div>
+      )}
+
+      {patientData && (
+        <div className="patient-data-area">
+          {/* Patient Summary Card */}
+          <div className="card summary-card">
+            <div className="summary-header">
+              <h3 className="patient-name">{patientData.name}</h3>
+              <div className="healthcard-id">
+                <p className="id-label">HealthCard ID</p>
+                <p className="id-number">{searchId}</p>
+              </div>
+            </div>
+
+            <div className="summary-info-grid">
+              <InfoBox title="Date of Birth" value={patientData.dob} icon="🎂"/>
+              <InfoBox title="Blood Group" value={patientData.bloodGroup} icon="🩸" customClass="info-box-alert"/>
+              <InfoBox title="Last Visit" value={patientData.lastVisit} icon="🏥"/>
+            </div>
+
+            <div className="critical-alerts">
+              <h4 className="alerts-title">
+                CRITICAL MEDICAL ALERTS
+              </h4>
+              <PillList title="Allergies" items={patientData.allergies} color="red"/>
+              <PillList title="Current Medications" items={patientData.currentMedications} color="green"/>
+            </div>
+          </div>
+          
+
+          {/* Detailed Records Section */}
+          <div className="card records-card">
+            <h3 className="records-title">Complete Treatment History</h3>
+            <div className="records-list">
+              {patientData.records.map((record, index) => (
+                <RecordItem key={index} record={record} />
+              ))}
+            </div>
+            <div className="add-record-area">
+              <button className="btn btn-secondary">
+                + Add New Consultation/Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- Helper Components ---
+
+const InfoBox = ({ title, value, icon, customClass = 'info-box-default' }) => (
+  <div className={`info-box ${customClass}`}>
+    <p className="info-title">
+      <span className="info-icon">{icon}</span> {title}
+    </p>
+    <p className="info-value">{value}</p>
+  </div>
+);
+
+const PillList = ({ title, items, color }) => (
+  <div className="pill-list-group">
+    <span className="pill-list-title">{title}:</span>
+    <div className="pill-list-items">
+      {items.map((item, index) => (
+        <span key={index} className={`pill pill-${color}`}>
+          {item}
+        </span>
+      ))}
+      {items.length === 0 && <span className="no-data">None Reported</span>}
+    </div>
+  </div>
+);
+
+const RecordItem = ({ record }) => (
+  <div className="record-item">
+    <div className={`record-type record-type-${record.type.toLowerCase().split(' ')[0]}`}>
+      {record.type === 'Surgery' && '🔪 Surgery'}
+      {record.type === 'Lab Report' && '🧪 Lab'}
+      {record.type === 'Consultation' && '📝 Consult'}
+    </div>
+    <div className="record-details">
+      <p className="record-summary">{record.details}</p>
+      <p className="record-date">Date: {record.date}</p>
+    </div>
+    <div className="record-source">
+      <p className="source-label">Source</p>
+      <p className="source-name">{record.doctor}</p>
+    </div>
+  </div>
+);
+
+// --- Main App Component ---
+
+function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loggedInId, setLoggedInId] = useState('');
+
+  const handleLogin = (id) => {
+    setLoggedInId(id);
+    setIsLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setLoggedInId('');
+  };
+
+  return (
+    <div className="App">
+      {isLoggedIn ? (
+        <>
+          <Header onLogout={handleLogout} />
+          <Dashboard loggedInId={loggedInId} />
+        </>
+      ) : (
+        <AuthScreen onLogin={handleLogin} />
+      )}
+    </div>
+  );
+}
+
+export default App; 
