@@ -89,7 +89,7 @@ const Dashboard = ({ loggedInId }) => {
   // Mock data to simulate API response
  const mockPatientData = {
   // --- PERSON 1: Chronic Condition Example ---
-  'HC-12345678': {
+  'priya': {
     name: 'Priya Sharma',
     dob: '15/05/1985',
     bloodGroup: 'A+',
@@ -104,8 +104,8 @@ const Dashboard = ({ loggedInId }) => {
   },
 
   // --- PERSON 2: Emergency & Recent Injury Example ---
-  'HC-90123456': {
-    name: 'Rajesh Verma',
+  'prince': {
+    name: 'prince',
     dob: '03/11/1998',
     bloodGroup: 'O-', // Rare Blood Group highlighted for emergency
     allergies: ['No Known Drug Allergies (NKDA)'],
@@ -119,7 +119,7 @@ const Dashboard = ({ loggedInId }) => {
   },
 
   // --- PERSON 3: Pediatric/Simple History Example ---
-  'HC-37485960': {
+  'meena': {
     name: 'Meena Reddy',
     dob: '01/01/2015',
     bloodGroup: 'B+',
